@@ -1,0 +1,5 @@
+if(EXISTS "/home/ifaz/Desktop/SemiGuard/build/SemiGuardTests-b12d07c_tests.cmake")
+  include("/home/ifaz/Desktop/SemiGuard/build/SemiGuardTests-b12d07c_tests.cmake")
+else()
+  add_test(SemiGuardTests_NOT_BUILT-b12d07c SemiGuardTests_NOT_BUILT-b12d07c)
+endif()

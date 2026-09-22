@@ -26,6 +26,7 @@ target_link_libraries(SemiGuardApp PRIVATE Threads::Threads)
 add_executable(SemiGuardTests
     tests/Test_StateMachine.cpp
     tests/Test_SafeQueue.cpp
+    tests/Test_Simulators.cpp
 )
 
 target_include_directories(SemiGuardTests PRIVATE include)
@@ -33,4 +34,5 @@ target_link_libraries(SemiGuardTests PRIVATE Catch2::Catch2WithMain Threads::Thr
 
 include(CTest)
 include(Catch)
-catch_discover_tests(SemiGuardTests)
+# Blocking pop() has no timeout, so cap each test as a hang safety net.
+catch_discover_tests(SemiGuardTests PROPERTIES TIMEOUT 30)
