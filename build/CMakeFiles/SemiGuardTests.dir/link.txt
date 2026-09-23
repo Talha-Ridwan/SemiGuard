@@ -1,1 +1,0 @@
-/usr/bin/c++ -g -Wl,--dependency-file=CMakeFiles/SemiGuardTests.dir/link.d CMakeFiles/SemiGuardTests.dir/tests/Test_StateMachine.cpp.o CMakeFiles/SemiGuardTests.dir/tests/Test_SafeQueue.cpp.o CMakeFiles/SemiGuardTests.dir/tests/Test_Simulators.cpp.o -o SemiGuardTests  _deps/catch2-build/src/libCatch2Maind.a _deps/catch2-build/src/libCatch2d.a

@@ -39,8 +39,6 @@ int main(){
     SensorSimulator sensor{arrivals, telemetry};
     WatchdogMonitor watchdog{stage, gm};
 
-    // Stand-in for the recipe start that EquipmentController will drive on Day 4:
-    // the watchdog can only raise ALARM from a running state, not from OFF_LINE.
     gm.switchState(State::IDLE);
     gm.switchState(State::SETUP);
     gm.switchState(State::EXECUTING);

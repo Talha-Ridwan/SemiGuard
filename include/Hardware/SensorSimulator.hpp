@@ -34,9 +34,10 @@ private:
 
         WaferPoint p;
         while(arrivals_.pop(p)){
-            if(st.stop_requested()) return;
+            if(st.stop_requested()) break;
             std::this_thread::sleep_for(2ms);          
             telemetry_.push(Measurement{p.x, p.y, dist_(gen_)});
         }
+        telemetry_.stop();
     }
 };

@@ -10,7 +10,7 @@
 
 class WatchdogMonitor
 {
-    const StageSimulator& ss_;
+    StageSimulator& ss_;
     GEMStateMachine& gm_;
     std::jthread worker_;
 
@@ -25,11 +25,13 @@ private:
     void run(std::stop_token st){
         using namespace std::chrono_literals;
         while(!st.stop_requested()){
+            
             WaferPoint snapshot = ss_.getPosition();
-            if(std::sqrt((snapshot.x * snapshot.x) + (snapshot.y * snapshot.y) )> 150.0){
+            if(ss_.isStopped() || std::sqrt((snapshot.x * snapshot.x) + (snapshot.y * snapshot.y) )> 150.0){
                 gm_.switchState(State::ALARM);
+                ss_.setStop();
+                break;
             }
-
             std::this_thread::sleep_for(50ms);
         }
     }

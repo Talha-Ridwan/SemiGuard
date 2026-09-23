@@ -124,7 +124,63 @@ TEST_CASE("full pipeline delivers one measurement per target, in order", "[pipel
     }
 }
 
-TEST_CASE("watchdog raises ALARM when the stage leaves the wafer", "[watchdog]") {
+TEST_CASE("stage refuses an off-wafer target without moving", "[stage]") {
+    SafeQueue<WaferPoint> targets;
+    SafeQueue<WaferPoint> arrivals;
+    StageSimulator stage{targets, arrivals};
+
+    // The follow-up target is on the wafer, but a tripped limit locks the motors,
+    // so it must never be executed either.
+    targets.push(WaferPoint{200.0, 0.0});  // 200mm out, past the 150mm limit
+    targets.push(WaferPoint{10.0, 0.0});
+
+    // No arrival for either target: the stage closes the queue on its way out.
+    WaferPoint arrived{};
+    REQUIRE_FALSE(arrivals.pop(arrived));
+
+    REQUIRE(stage.isStopped());
+
+    // The check happens before the first step, so the stage never left the origin.
+    const WaferPoint live = stage.getPosition();
+    REQUIRE(live.x == Approx(0.0));
+    REQUIRE(live.y == Approx(0.0));
+}
+
+TEST_CASE("stage accepts a target exactly on the wafer edge", "[stage]") {
+    SafeQueue<WaferPoint> targets;
+    SafeQueue<WaferPoint> arrivals;
+    StageSimulator stage{targets, arrivals};
+
+    targets.push(WaferPoint{150.0, 0.0});  // r == 150mm is still on the wafer
+
+    WaferPoint arrived{};
+    REQUIRE(arrivals.pop(arrived));
+    REQUIRE(arrived.x == Approx(150.0));
+    REQUIRE_FALSE(stage.isStopped());
+}
+
+TEST_CASE("stage halts at its last good point when a later target is off-wafer", "[stage]") {
+    SafeQueue<WaferPoint> targets;
+    SafeQueue<WaferPoint> arrivals;
+    StageSimulator stage{targets, arrivals};
+
+    targets.push(WaferPoint{20.0, 10.0});
+    targets.push(WaferPoint{200.0, 0.0});
+
+    WaferPoint arrived{};
+    REQUIRE(arrivals.pop(arrived));
+    REQUIRE(arrived.x == Approx(20.0));
+    REQUIRE(arrived.y == Approx(10.0));
+
+    REQUIRE_FALSE(arrivals.pop(arrived));
+    REQUIRE(stage.isStopped());
+
+    const WaferPoint live = stage.getPosition();
+    REQUIRE(live.x == Approx(20.0));
+    REQUIRE(live.y == Approx(10.0));
+}
+
+TEST_CASE("watchdog raises ALARM when the stage refuses an off-wafer target", "[watchdog]") {
     SafeQueue<WaferPoint> targets;
     SafeQueue<WaferPoint> arrivals;
     GEMStateMachine gm;
@@ -139,10 +195,36 @@ TEST_CASE("watchdog raises ALARM when the stage leaves the wafer", "[watchdog]")
 
     targets.push(WaferPoint{200.0, 0.0});  // 200mm out, past the 150mm limit
 
+    // The stage refuses before moving, so no arrival ever comes.
     WaferPoint arrived{};
-    REQUIRE(arrivals.pop(arrived));
+    REQUIRE_FALSE(arrivals.pop(arrived));
 
     // The watchdog polls every 50ms; allow several cycles before judging.
+    std::this_thread::sleep_for(200ms);
+    REQUIRE(gm.getState() == State::ALARM);
+
+    // The stage never left the wafer; the watchdog reports the e-stop, not a position.
+    const WaferPoint live = stage.getPosition();
+    REQUIRE(live.x * live.x + live.y * live.y <= 150.0 * 150.0);
+}
+
+TEST_CASE("watchdog raises ALARM when the stage is e-stopped externally", "[watchdog]") {
+    SafeQueue<WaferPoint> targets;
+    SafeQueue<WaferPoint> arrivals;
+    GEMStateMachine gm;
+
+    StageSimulator stage{targets, arrivals};
+    WatchdogMonitor watchdog{stage, gm};
+
+    REQUIRE(gm.switchState(State::IDLE));
+    REQUIRE(gm.switchState(State::SETUP));
+    REQUIRE(gm.switchState(State::EXECUTING));
+
+    // Tripping twice must stay tripped: the stop is idempotent, not a toggle.
+    stage.setStop();
+    stage.setStop();
+    REQUIRE(stage.isStopped());
+
     std::this_thread::sleep_for(200ms);
     REQUIRE(gm.getState() == State::ALARM);
 }
