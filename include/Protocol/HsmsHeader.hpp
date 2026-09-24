@@ -12,8 +12,15 @@ enum class SType : std::uint8_t
 };
 
 struct HsmsHeader
-{
-    std::uint16_t sessionId = 1;
+{   /*
+    session id 1 for data messages
+    wBit 1 means reply is wanted
+    function odd = request, even = reply
+    ptype 0 meaning body is SECS-II
+    Stype to 0 means Data
+    sysbytes are just transaction id, reply must match request id so host can match them
+    */
+    std::uint16_t sessionId = 1; 
     std::uint8_t stream = 0;
     std::uint8_t function = 0;
     bool wBit = false;

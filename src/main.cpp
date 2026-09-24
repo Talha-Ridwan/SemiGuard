@@ -2,6 +2,7 @@
 #include "Hardware/SensorSimulator.hpp"
 #include "Hardware/StageSimulator.hpp"
 #include "Hardware/WatchdogMonitor.hpp"
+#include "Protocol/TcpServer.hpp"
 
 #include <chrono>
 #include <iomanip>
@@ -62,6 +63,21 @@ int main(){
     // The watchdog polls every 50ms; give it a beat to observe the final position.
     std::this_thread::sleep_for(100ms);
     std::cout << "state: " << toString(gm.getState()) << "\n";
+
+    TcpServer server{5000};
+    if(!server.start()){
+        std::cerr << "failed to listen on port 5000\n";
+        return 1;
+    }
+    std::cout << "listening on port 5000, waiting for host...\n";
+
+    if(!server.acceptClient()){
+        std::cerr << "accept failed\n";
+        return 1;
+    }
+    std::cout << "host connected\n";
+
+    server.serve();
 
     return 0;
 }

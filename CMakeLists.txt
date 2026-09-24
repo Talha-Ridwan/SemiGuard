@@ -27,6 +27,7 @@ add_executable(SemiGuardTests
     tests/Test_StateMachine.cpp
     tests/Test_SafeQueue.cpp
     tests/Test_Simulators.cpp
+    tests/Test_SecsParser.cpp
 )
 
 target_include_directories(SemiGuardTests PRIVATE include)
