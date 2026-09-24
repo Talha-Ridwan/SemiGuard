@@ -46,12 +46,12 @@ struct SecsItem {
         return item;
     };    
 
-    std::vector<std::uint8_t> encode() const{
+    [[nodiscard]] std::vector<std::uint8_t> encode() const{
         std::vector<std::uint8_t> out;
-        out.push_back((static_cast<std::uint8_t>(format) << 2) | 1);
-        if (format == SecsFormat::L){
+        out.push_back((static_cast<std::uint8_t>(format) << 2) | 1);  // format byte: type in top 6 bits, |1 = length field is 1 byte wide
+        if (format == SecsFormat::L){ //is a valid list
             out.push_back(items.size());
-            for(const SecsItem& child : items){
+            for(const SecsItem& child : items){ //count bytes of the value
                 auto childBytes = child.encode();
                 out.insert(out.end(), childBytes.begin(), childBytes.end());
             }

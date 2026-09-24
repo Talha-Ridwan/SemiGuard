@@ -54,7 +54,7 @@ int main(){
     std::cout << std::fixed << std::setprecision(2);
 
     for(std::size_t i = 0; i < points.size(); ++i){
-        Measurement m;
+        Measurement m{};
         if(!telemetry.pop(m)) break;
         std::cout << "x=" << m.x << "  y=" << m.y
                   << "  thickness=" << m.thickness_nm << " nm\n";

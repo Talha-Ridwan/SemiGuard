@@ -77,6 +77,8 @@ public:
         if (!readExact(lenBuf.data(), lenBuf.size()))
             return std::nullopt;
 
+        // reassemble 4 bytes into one 32-bit number: shift each back up to its
+        // slot and OR them together (mirror image of the split in sendFrame)
         std::uint32_t length = (static_cast<std::uint32_t>(lenBuf[0]) << 24) |
                                (static_cast<std::uint32_t>(lenBuf[1]) << 16) |
                                (static_cast<std::uint32_t>(lenBuf[2]) << 8) |
@@ -104,6 +106,8 @@ public:
 
         std::vector<std::uint8_t> out;
         out.reserve(4 + length);
+        // split one 32-bit number into 4 bytes, biggest first (big-endian):
+        // slide the wanted byte down with >>, stencil the rest off with & 0xFF
         out.push_back(static_cast<std::uint8_t>(length >> 24));
         out.push_back(static_cast<std::uint8_t>((length >> 16) & 0xFF));
         out.push_back(static_cast<std::uint8_t>((length >> 8) & 0xFF));

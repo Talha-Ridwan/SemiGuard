@@ -34,10 +34,10 @@ struct HsmsHeader
     {
         std::array<std::uint8_t, WireSize> buf{};
 
-        buf[0] = static_cast<std::uint8_t>(sessionId >> 8);
-        buf[1] = static_cast<std::uint8_t>(sessionId & 0xFF);
+        buf[0] = static_cast<std::uint8_t>(sessionId >> 8); //high 8 bits of the session id
+        buf[1] = static_cast<std::uint8_t>(sessionId & 0xFF); //low 8 bits of the session id
 
-        buf[2] = (wBit ? 0x80 : 0x00) | (stream & 0x7F);
+        buf[2] = (wBit ? 0x80 : 0x00) | (stream & 0x7F); //wbit worth 128 decides reply or not, rest is just stream number, | appends them, bitmasking removes the top bit to preserve only the stream bits
 
         buf[3] = function;
 
