@@ -53,17 +53,6 @@ int main(){
 
     std::cout << std::fixed << std::setprecision(2);
 
-    for(std::size_t i = 0; i < points.size(); ++i){
-        Measurement m{};
-        if(!telemetry.pop(m)) break;
-        std::cout << "x=" << m.x << "  y=" << m.y
-                  << "  thickness=" << m.thickness_nm << " nm\n";
-    }
-
-    // The watchdog polls every 50ms; give it a beat to observe the final position.
-    std::this_thread::sleep_for(100ms);
-    std::cout << "state: " << toString(gm.getState()) << "\n";
-
     TcpServer server{5000};
     if(!server.start()){
         std::cerr << "failed to listen on port 5000\n";
@@ -77,7 +66,19 @@ int main(){
     }
     std::cout << "host connected\n";
 
-    server.serve();
+    for(std::size_t i = 0; i < points.size(); ++i){
+        Measurement m{};
+        if(!telemetry.pop(m)) break;
+        std::cout << "x=" << m.x << "  y=" << m.y
+                  << "  thickness=" << m.thickness_nm << " nm\n";
+        server.sendEventReport(m);   // S6F11 event report to the host
+    }
+
+    // The watchdog polls every 50ms; give it a beat to observe the final position.
+    std::this_thread::sleep_for(100ms);
+    std::cout << "state: " << toString(gm.getState()) << "\n";
+
+    server.serve(gm);
 
     return 0;
 }

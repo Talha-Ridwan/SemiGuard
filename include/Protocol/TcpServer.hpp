@@ -1,16 +1,16 @@
 #pragma once
 
 #include "HsmsHeader.hpp"
-
+#include "SecsMessage.hpp"
+#include "Core/GEMStateMachine.hpp"
+#include <Common/Types.hpp>
 #include <cerrno>
 #include <cstddef>
-#include <cstdint>
 #include <iostream>
 #include <optional>
 #include <vector>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <unistd.h>
 
 struct HsmsFrame
@@ -24,6 +24,7 @@ class TcpServer
     std::uint16_t port_;
     int listenFd_ = -1;
     int clientFd_ = -1;
+    std::uint32_t nextSys_ = 0;
 
     static constexpr std::uint32_t MaxFrameLength = 1024 * 1024;
 
@@ -71,8 +72,7 @@ public:
         return clientFd_ != -1;
     }
 
-    std::optional<HsmsFrame> readFrame()
-    {
+    [[nodiscard]] std::optional<HsmsFrame> readFrame() const {
         std::array<std::uint8_t, 4> lenBuf{};
         if (!readExact(lenBuf.data(), lenBuf.size()))
             return std::nullopt;
@@ -120,13 +120,11 @@ public:
         return writeAll(out.data(), out.size());
     }
 
-    void serve()
+    void serve(GEMStateMachine& gem)
     {
-        while (auto frame = readFrame())
+        while (const auto frame = readFrame())
         {
-            const HsmsHeader& req = frame->header;
-
-            switch (req.stype)
+            switch (const HsmsHeader& req = frame->header; req.stype)
             {
             case SType::SelectReq:
             {
@@ -148,10 +146,74 @@ public:
                 std::cout << "[hsms] Linktest.req -> Linktest.rsp\n";
                 break;
             }
-            case SType::Data:
+            case SType::Data: {
                 std::cout << "[hsms] data S" << int(req.stream) << "F" << int(req.function)
                           << (req.wBit ? "W" : "") << ", " << frame->body.size() << " body bytes\n";
+
+                auto root = SecsItem::decode(frame->body);
+
+                if (req.stream == 1 && req.function == 13) {
+                    SecsItem reply = SecsItem::list({
+                        SecsItem::binary(0),
+                        SecsItem::list({})
+                    });
+
+                    HsmsHeader rsp;
+                    rsp.sessionId = req.sessionId;
+                    rsp.stream = 1;
+                    rsp.function = 14;
+                    rsp.wBit = false;
+                    rsp.stype = SType::Data;
+                    rsp.sysBytes = req.sysBytes;
+
+                    sendFrame(rsp, reply.encode());
+                    std::cout << "[hsms] S1F13 -> S1F14 (COMMACK=0)\n";
+                }
+
+                if (req.stream == 2 && req.function == 41) {
+                    if (root && !root->items.empty() && root->items[0].format == SecsFormat::A) {
+                        const auto& d = root->items[0].data;
+                        std::string rcmd(d.begin(), d.end());
+
+                        std::uint8_t hcack;
+                        if (rcmd == "START") {
+                            hcack = (gem.switchState(State::SETUP) && //not atomic, watchdog might signal alarm after releasing lock
+                                     gem.switchState(State::EXECUTING)) ? 0 : 2;
+                        }
+                        // STOP / PAUSE / RESUME / else  ← your turn
+                        else if (rcmd == "STOP") {
+                            hcack = gem.switchState(State::IDLE) ? 0 : 2;
+                        }
+                        else if (rcmd == "PAUSE") {
+                            hcack = gem.switchState(State::PAUSED) ? 0 : 2;
+                        }
+                        else if (rcmd == "RESUME") {
+                            hcack = gem.switchState(State::EXECUTING) ? 0 : 2;
+                        }
+                        else {
+                            hcack = 1; //unknown command given
+                        }
+
+                        SecsItem reply = SecsItem::list({
+                            SecsItem::binary(hcack),
+                            SecsItem::list({})
+                        });
+
+                        HsmsHeader rsp;
+                        rsp.sessionId = req.sessionId;
+                        rsp.stream = 2;
+                        rsp.function = 42;
+                        rsp.wBit = false;
+                        rsp.stype = SType::Data;
+                        rsp.sysBytes = req.sysBytes;
+
+                        sendFrame(rsp, reply.encode());
+                        std::cout << "[hsms] S2F41 " << rcmd << " -> S2F42 (HCACK=" << int(hcack) << ")\n";
+                    }
+                }
+
                 break;
+            }
             default:
                 std::cout << "[hsms] ignoring unsupported stype " << int(req.stype) << "\n";
                 break;
@@ -164,7 +226,7 @@ public:
     }
 
 private:
-    bool readExact(std::uint8_t* dst, std::size_t n)
+    bool readExact(std::uint8_t* dst, const std::size_t n) const
     {
         std::size_t got = 0;
         while (got < n)
@@ -180,7 +242,7 @@ private:
         return true;
     }
 
-    bool writeAll(const std::uint8_t* src, std::size_t n)
+    bool writeAll(const std::uint8_t* src, const std::size_t n) const
     {
         std::size_t sent = 0;
         while (sent < n)
@@ -194,5 +256,30 @@ private:
                 return false;
         }
         return true;
+    }
+
+public:
+    bool sendEventReport(const Measurement& m) {
+        SecsItem values = SecsItem::list({
+            SecsItem::f4(static_cast<float>(m.x)),
+            SecsItem::f4(static_cast<float>(m.y)),
+            SecsItem::f4(static_cast<float>(m.thickness_nm))
+        });
+
+        SecsItem report = SecsItem::list({ SecsItem::u4(1), values });
+
+        SecsItem body = SecsItem::list({
+            SecsItem::u4(0),               // DATAID
+            SecsItem::u4(1),               // CEID
+            SecsItem::list({ report })     // reports list (L,1)
+        });
+
+        HsmsHeader hdr;
+        hdr.stream   = 6;
+        hdr.function = 11;
+        hdr.wBit     = false;
+        hdr.stype    = SType::Data;
+        hdr.sysBytes = ++nextSys_;
+        return sendFrame(hdr, body.encode());
     }
 };

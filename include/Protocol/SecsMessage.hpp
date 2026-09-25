@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 #include <string_view>
+#include <bit>
 enum class SecsFormat : std::uint8_t{
     L = 0x00, //List
     B = 0x08, //Binary
@@ -44,7 +45,19 @@ struct SecsItem {
         item.data.push_back(value >> 8);
         item.data.push_back(value >> 0);
         return item;
-    };    
+    };
+
+    static SecsItem f4(const float value) {
+        SecsItem item;
+        item.format = SecsFormat::F4;
+        const auto bits = std::bit_cast<std::uint32_t>(value);
+        item.data.push_back(bits >> 24);
+        item.data.push_back(bits >> 16);
+        item.data.push_back(bits >> 8);
+        item.data.push_back(bits >> 0);
+
+        return item;
+    }
 
     [[nodiscard]] std::vector<std::uint8_t> encode() const{
         std::vector<std::uint8_t> out;
