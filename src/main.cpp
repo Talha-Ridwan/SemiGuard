@@ -44,8 +44,17 @@ int main(){
     gm.switchState(State::SETUP);
     gm.switchState(State::EXECUTING);
 
-    // Last point sits off the 300mm wafer (150mm radius) to trip the watchdog.
-    const std::vector<WaferPoint> points{ {0,0}, {10,0}, {20,0}, {20,10}, {200,0} };
+    // Scan a grid of dies across the 300mm wafer (150mm radius), row by row,
+    // then one point off the wafer to trip the watchdog into ALARM.
+    std::vector<WaferPoint> points;
+    for(int gy = 120; gy >= -120; gy -= 30){
+        for(int gx = -120; gx <= 120; gx += 30){
+            if(gx*gx + gy*gy <= 140*140){
+                points.push_back({static_cast<double>(gx), static_cast<double>(gy)});
+            }
+        }
+    }
+    points.push_back({200.0, 0.0});
 
     for(const auto& p : points){
         targets.push(p);
