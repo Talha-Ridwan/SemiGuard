@@ -36,7 +36,7 @@ struct Measurement3 { float x; float y; float thickness; };
 
 float readF4(const SecsItem& it)
 {
-    const std::uint32_t bits = (<std::uint32_t>(it.data[0]) << 24) |
+    const std::uint32_t bits = (std::uint32_t(it.data[0]) << 24) |
                                (std::uint32_t(it.data[1]) << 16) |
                                (std::uint32_t(it.data[2]) << 8)  |
                                 std::uint32_t(it.data[3]);
